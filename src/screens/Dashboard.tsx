@@ -245,6 +245,7 @@ export default function Dashboard() {
                         lng={displayData?.location?.lng ?? 80.65804243873862}
                         trail={trail}
                         status={displayData ? displayStatus : 'CONNECTING...'}
+                        isDarkMode={isDarkMode}
                     />
                 </View>
 

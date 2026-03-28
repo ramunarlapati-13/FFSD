@@ -26,6 +26,16 @@ This app is strictly synchronized with hardware data streams and features a fail
 
 ---
 
+## 📸 Screenshots
+
+<p align="center">
+  <img src="./docs/screenshots/normal_dashboard.jpg" width="280" alt="Normal Dashboard" />
+  <img src="./docs/screenshots/critical_alert.jpg" width="280" alt="Critical Alert Modal" />
+  <img src="./docs/screenshots/warning_state.jpg" width="280" alt="Warning Dashboard" />
+</p>
+
+---
+
 ## 🛡️ Critical Alert System
 
 The app features a multi-channel emergency alert system that triggers when `EMERGENCY`, `SOS`, or a **FALL** is detected:
@@ -73,6 +83,11 @@ The app features a multi-channel emergency alert system that triggers when `EMER
 
 | Feature | Description |
 |---|---|
+| **3D Architecture** | **Theme-Aware** 3D Building Extrusion (Dark/Light sync). |
+| **Map Layer Switch** | Floating toggle for **Satellite** and **3D Vector** views. |
+| **Tactical Focus** | High-precision **Crosshair** button to instantly center on target. |
+| **Deep-Link Nav** | One-tap **Google/Apple Maps** routing to firefighter coordinates. |
+| **Tactical Compass** | Real-time **Orientation & Pitch** visualization on-map. |
 | **Theme Switching** | Instant toggle between **Light** and **Dark** modes (Sun/Moon button). |
 | **Live Unit Status** | Strictly real-time monitoring of `firefighter_01` node in Firebase. |
 | **Emergency Alerts** | Vibration + Sound + Modal popup for critical conditions. |
