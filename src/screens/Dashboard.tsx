@@ -320,6 +320,16 @@ export default function Dashboard() {
                     sensorStatus={sensorStatus}
                     isDarkMode={isDarkMode}
                 />
+
+                {/* Footer / Copyright */}
+                <View style={[styles.footer, { borderTopColor: theme.border }]}>
+                    <Text style={[styles.footerText, { color: theme.subtext }]}>
+                        © 2026 Power Pulse Team. All rights reserved.
+                    </Text>
+                    <Text style={[styles.footerSubtext, { color: theme.subtext }]}>
+                        Firefighter Safety Dashboard (SSFD) v1.0.0
+                    </Text>
+                </View>
             </ScrollView>
 
             {/* Critical Alert Modal */}
@@ -424,4 +434,14 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     modalDismissText: { color: '#fff', fontSize: 16, fontWeight: '900', letterSpacing: 2 },
+    // Footer
+    footer: {
+        marginTop: 32,
+        paddingTop: 16,
+        borderTopWidth: 1,
+        alignItems: 'center',
+        paddingBottom: 20,
+    },
+    footerText: { fontSize: 12, fontWeight: '700' },
+    footerSubtext: { fontSize: 10, marginTop: 4 },
 });
