@@ -394,9 +394,9 @@ const styles = StyleSheet.create({
     },
     statusText: { fontSize: 20, fontWeight: '900', marginTop: 8, letterSpacing: 2 },
     mapContainer: {
-        height: 280, borderRadius: 20, overflow: 'hidden', backgroundColor: '#e2e8f0',
+        height: 350, borderRadius: 24, overflow: 'hidden', backgroundColor: '#e2e8f0',
         marginBottom: 16,
-        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 4,
     },
     mapPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
     mapPlaceholderText: { color: '#94a3b8', fontSize: 14 },
