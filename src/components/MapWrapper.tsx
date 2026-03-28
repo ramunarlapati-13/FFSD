@@ -1,14 +1,24 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { StyleSheet, View, TouchableOpacity, Linking, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Layers, Map as MapIcon, Crosshair, Navigation } from 'lucide-react-native';
+import { DeviceState, GeofenceZone } from '../lib/types';
 
-interface MapProps {
+interface FleetMapUnit {
+    id: string;
     lat: number;
     lng: number;
+    status: DeviceState;
     trail: [number, number][];
-    status: string;
+}
+
+interface MapProps {
+    units: FleetMapUnit[];
+    selectedUnitId: string;
+    zones: GeofenceZone[];
+    replayPath: [number, number][];
     isDarkMode: boolean;
+    onSelectUnit: (unitId: string) => void;
 }
 
 const MapLibreHTML = `
@@ -54,9 +64,10 @@ const MapLibreHTML = `
     <div id="map"></div>
     <script>
         let map;
-        let marker;
+        let markers = {};
         let currentMode = null;
         let currentLayer = 'vector';
+        let selectedUnit = null;
         let latestCoords = [80.658042, 16.508948];
         
         const STYLES = {
@@ -109,16 +120,47 @@ const MapLibreHTML = `
             }, labelLayerId);
         }
 
-        function setupOverlay() {
-            if (marker) marker.remove();
-            
-            const el = document.createElement('div');
-            el.className = 'marker';
-            el.innerHTML = '<div class="pulse"></div>📍';
-            marker = new maplibregl.Marker({ element: el })
-                .setLngLat(latestCoords)
-                .addTo(map);
+        function markerColor(status) {
+            if (status === 'EMERGENCY') return '#ef4444';
+            if (status === 'SOS') return '#a855f7';
+            if (status === 'WARNING') return '#f59e0b';
+            if (status === 'OFFLINE') return '#64748b';
+            return '#10b981';
+        }
 
+        function createMarkerElement(unit) {
+            const el = document.createElement('button');
+            el.style.width = '26px';
+            el.style.height = '26px';
+            el.style.borderRadius = '13px';
+            el.style.border = '2px solid #ffffff';
+            el.style.background = markerColor(unit.status);
+            el.style.cursor = 'pointer';
+            el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.4)';
+            el.title = unit.id;
+            el.onclick = () => {
+                if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'selectUnit', unitId: unit.id }));
+                }
+            };
+            return el;
+        }
+
+        function toCircle(center, radiusMeters, points = 48) {
+            const coords = [];
+            const lat = center[1] * Math.PI / 180;
+            const lng = center[0] * Math.PI / 180;
+            const d = radiusMeters / 6378137;
+            for (let i = 0; i <= points; i++) {
+                const brng = (2 * Math.PI * i) / points;
+                const lat2 = Math.asin(Math.sin(lat) * Math.cos(d) + Math.cos(lat) * Math.sin(d) * Math.cos(brng));
+                const lng2 = lng + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(lat), Math.cos(d) - Math.sin(lat) * Math.sin(lat2));
+                coords.push([lng2 * 180 / Math.PI, lat2 * 180 / Math.PI]);
+            }
+            return coords;
+        }
+
+        function setupOverlay() {
             if (!map.getSource('trail')) {
                 map.addSource('trail', {
                     'type': 'geojson',
@@ -135,13 +177,134 @@ const MapLibreHTML = `
                     'paint': { 'line-color': '#3b82f6', 'line-width': 6, 'line-opacity': 0.8 }
                 });
             }
+
+            if (!map.getSource('replay')) {
+                map.addSource('replay', {
+                    'type': 'geojson',
+                    'data': { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': [] } }
+                });
+            }
+
+            if (!map.getLayer('replay-layer')) {
+                map.addLayer({
+                    'id': 'replay-layer',
+                    'type': 'line',
+                    'source': 'replay',
+                    'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                    'paint': {
+                        'line-color': '#22d3ee',
+                        'line-width': 4,
+                        'line-opacity': 0.95,
+                        'line-dasharray': [1.5, 1.5]
+                    }
+                });
+            }
+
+            if (!map.getSource('zones')) {
+                map.addSource('zones', {
+                    type: 'geojson',
+                    data: { type: 'FeatureCollection', features: [] }
+                });
+            }
+
+            if (!map.getLayer('zones-fill')) {
+                map.addLayer({
+                    id: 'zones-fill',
+                    type: 'fill',
+                    source: 'zones',
+                    paint: {
+                        'fill-color': ['match', ['get', 'zoneType'], 'SAFE', '#22c55e', '#ef4444'],
+                        'fill-opacity': 0.18,
+                    }
+                });
+            }
+
+            if (!map.getLayer('zones-outline')) {
+                map.addLayer({
+                    id: 'zones-outline',
+                    type: 'line',
+                    source: 'zones',
+                    paint: {
+                        'line-color': ['match', ['get', 'zoneType'], 'SAFE', '#22c55e', '#ef4444'],
+                        'line-width': 2,
+                        'line-opacity': 0.9,
+                    }
+                });
+            }
+        }
+
+        function updateMarkers(units) {
+            const nextIds = {};
+            units.forEach(unit => {
+                nextIds[unit.id] = true;
+                if (!markers[unit.id]) {
+                    markers[unit.id] = new maplibregl.Marker({ element: createMarkerElement(unit) })
+                        .setLngLat([unit.lng, unit.lat])
+                        .addTo(map);
+                } else {
+                    markers[unit.id].setLngLat([unit.lng, unit.lat]);
+                    const el = markers[unit.id].getElement();
+                    el.style.background = markerColor(unit.status);
+                }
+            });
+
+            Object.keys(markers).forEach(id => {
+                if (!nextIds[id]) {
+                    markers[id].remove();
+                    delete markers[id];
+                }
+            });
+        }
+
+        function updateTrail(units, selectedUnitId) {
+            const selected = units.find(u => u.id === selectedUnitId) || units[0] || null;
+            selectedUnit = selected;
+            if (!selected) return;
+            latestCoords = [selected.lng, selected.lat];
+            const coords = selected.trail.map(p => [p[1], p[0]]);
+            const source = map.getSource('trail');
+            if (source) {
+                source.setData({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: coords }
+                });
+            }
+            map.easeTo({ center: latestCoords, duration: 1200 });
+        }
+
+        function updateReplayPath(replayPath) {
+            const source = map.getSource('replay');
+            if (source) {
+                source.setData({
+                    type: 'Feature',
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: replayPath.map(p => [p[1], p[0]])
+                    }
+                });
+            }
+        }
+
+        function updateZones(zones) {
+            const source = map.getSource('zones');
+            if (!source) return;
+            const features = zones.map(zone => ({
+                type: 'Feature',
+                properties: { zoneType: zone.type, zoneId: zone.id, name: zone.name },
+                geometry: {
+                    type: 'Polygon',
+                    coordinates: [toCircle([zone.center.lng, zone.center.lat], zone.radiusMeters)]
+                }
+            }));
+            source.setData({ type: 'FeatureCollection', features });
         }
 
         window.updateData = (data) => {
             if (!map) {
                 currentMode = data.isDarkMode;
                 currentLayer = data.layerType || 'vector';
-                latestCoords = [data.lng, data.lat];
+                const first = data.units?.[0];
+                latestCoords = first ? [first.lng, first.lat] : [80.658042, 16.508948];
                 
                 let initialStyle = currentLayer === 'satellite' ? STYLES.satellite : (data.isDarkMode ? STYLES.dark : STYLES.light);
                 
@@ -170,6 +333,10 @@ const MapLibreHTML = `
                 map.on('style.load', () => {
                     if (currentLayer === 'vector') add3DLayer();
                     setupOverlay();
+                    updateMarkers(data.units || []);
+                    updateTrail(data.units || [], data.selectedUnitId);
+                    updateReplayPath(data.replayPath || []);
+                    updateZones(data.zones || []);
                 });
                 return;
             }
@@ -187,26 +354,17 @@ const MapLibreHTML = `
                 }
             }
 
-            latestCoords = [data.lng, data.lat];
-            if (marker) marker.setLngLat(latestCoords);
-            map.easeTo({ center: latestCoords, duration: 1500 });
-
-            if (data.trail) {
-                const coords = data.trail.map(p => [p[1], p[0]]);
-                const source = map.getSource('trail');
-                if (source) {
-                    source.setData({
-                        'type': 'Feature',
-                        'geometry': { 'type': 'LineString', 'coordinates': coords }
-                    });
-                }
-            }
+            updateMarkers(data.units || []);
+            updateTrail(data.units || [], data.selectedUnitId);
+            updateReplayPath(data.replayPath || []);
+            updateZones(data.zones || []);
         };
 
         window.focusTarget = () => {
             if (map) {
+                const coords = selectedUnit ? [selectedUnit.lng, selectedUnit.lat] : latestCoords;
                 map.flyTo({
-                    center: latestCoords,
+                    center: coords,
                     zoom: 18.5,
                     pitch: 65,
                     duration: 2000,
@@ -227,17 +385,20 @@ const MapLibreHTML = `
 </html>
 `;
 
-export default function MapWrapper({ lat, lng, trail, status, isDarkMode }: MapProps) {
+export default function MapWrapper({ units, selectedUnitId, zones, replayPath, isDarkMode, onSelectUnit }: MapProps) {
     const webViewRef = useRef<WebView>(null);
     const [layerType, setLayerType] = useState<'vector' | 'satellite'>('vector');
-    const trailColor = (status === 'EMERGENCY' || status === 'SOS') ? '#ef4444' : '#3b82f6';
+    const selectedUnit = useMemo(
+        () => units.find(unit => unit.id === selectedUnitId) || units[0] || null,
+        [units, selectedUnitId]
+    );
 
     useEffect(() => {
         if (webViewRef.current) {
-            const data = { type: 'update', lat, lng, trail, status, trailColor, isDarkMode, layerType };
+            const data = { type: 'update', units, selectedUnitId, zones, replayPath, isDarkMode, layerType };
             webViewRef.current.postMessage(JSON.stringify(data));
         }
-    }, [lat, lng, trail, status, trailColor, isDarkMode, layerType]);
+    }, [units, selectedUnitId, zones, replayPath, isDarkMode, layerType]);
 
     const handleFocus = () => {
         if (webViewRef.current) {
@@ -246,9 +407,10 @@ export default function MapWrapper({ lat, lng, trail, status, isDarkMode }: MapP
     };
 
     const handleOpenDirections = () => {
+        if (!selectedUnit) return;
         const url = Platform.select({
-            ios: `maps://app?daddr=${lat},${lng}`,
-            android: `google.navigation:q=${lat},${lng}`,
+            ios: `maps://app?daddr=${selectedUnit.lat},${selectedUnit.lng}`,
+            android: `google.navigation:q=${selectedUnit.lat},${selectedUnit.lng}`,
         });
         if (url) Linking.openURL(url);
     };
@@ -262,8 +424,18 @@ export default function MapWrapper({ lat, lng, trail, status, isDarkMode }: MapP
                 style={styles.map}
                 bounces={false}
                 scrollEnabled={false} 
+                onMessage={(event) => {
+                    try {
+                        const payload = JSON.parse(event.nativeEvent.data);
+                        if (payload?.type === 'selectUnit' && payload?.unitId) {
+                            onSelectUnit(payload.unitId);
+                        }
+                    } catch {
+                        // Ignore malformed postMessage payloads.
+                    }
+                }}
                 onLoadEnd={() => {
-                    const data = { type: 'update', lat, lng, trail, status, trailColor, isDarkMode, layerType };
+                    const data = { type: 'update', units, selectedUnitId, zones, replayPath, isDarkMode, layerType };
                     webViewRef.current?.postMessage(JSON.stringify(data));
                 }}
             />

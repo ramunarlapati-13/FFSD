@@ -1,12 +1,8 @@
-# SSFD — Smart Firefighter Safety Device
-
-<p align="center">
-  <img src="./assets/icon.png" width="96" alt="SSFD Icon" />
-</p>
+# FFSD — Fire Fighter Safety Device
 
 <p align="center">
   <strong>Real-time firefighter vitals, GPS tracking & emergency alerting — in your pocket.</strong><br/>
-  A production-ready React Native + Expo mobile companion app for the SSFD monitoring system.
+  A production-ready React Native + Expo mobile companion app for the FFSD monitoring system.
 </p>
 
 <p align="center">
@@ -20,7 +16,7 @@
 
 ## 📖 Project Overview
 
-SSFD (*Smart Firefighter Safety Device*) is an end-to-end IoT system designed to monitor a firefighter's safety in real-time. A wearable embedded device streams live sensor telemetry (body-zone temperature, gas levels, motion, GPS location) directly to Firebase, where this **mobile app** displays the status and triggers critical emergency alerts.
+FFSD (*Fire Fighter Safety Device*) is an end-to-end IoT system designed to monitor a firefighter's safety in real-time. A wearable embedded device streams live sensor telemetry (body-zone temperature, gas levels, motion, GPS location) directly to Firebase, where this **mobile app** displays the status and triggers critical emergency alerts.
 
 This app is strictly synchronized with hardware data streams and features a failsafe alerting system.
 
@@ -71,7 +67,7 @@ The app features a multi-channel emergency alert system that triggers when `EMER
                              │
                              ▼
               ┌──────────────────────────────┐
-              │          SSFD App            │
+              │          FFSD App            │
               │   (React Native + Expo)      │
               │   - Realtime Dashboard       │
               │   - GPS Mapping              │
@@ -103,7 +99,7 @@ The app features a multi-channel emergency alert system that triggers when `EMER
 
 ## 🎨 Theme Customization
 
-The SSFD dashboard is designed for both high-stakes daylight monitoring and low-light tactical operations:
+The FFSD dashboard is designed for both high-stakes daylight monitoring and low-light tactical operations:
 
 - **🌙 Dark Mode**: Deep blue/slate palette to reduce eye strain and save battery life.
 - **☀️ Light Mode**: High-contrast, clean design for maximum outdoor legibility.
@@ -156,7 +152,7 @@ The SSFD dashboard is designed for both high-stakes daylight monitoring and low-
 
 ```bash
 git clone https://github.com/Rsmk27/firefighter-monitoring-device.git
-cd firefighter-monitoring-device/SSFD
+cd firefighter-monitoring-device/FFSD
 npm install --legacy-peer-deps
 ```
 
