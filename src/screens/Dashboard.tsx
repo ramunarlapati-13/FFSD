@@ -56,10 +56,31 @@ function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number)
 }
 
 function mapStatus(value: string): DeviceState {
-    if (value.includes('EMERGENCY')) return 'EMERGENCY';
-    if (value.includes('WARNING')) return 'WARNING';
-    if (value.includes('SOS')) return 'SOS';
+    const normalized = (value ?? '').toUpperCase();
+    if (normalized.includes('OFFLINE')) return 'OFFLINE';
+    if (normalized.includes('EMERGENCY')) return 'EMERGENCY';
+    if (normalized.includes('WARNING')) return 'WARNING';
+    if (normalized.includes('SOS')) return 'SOS';
     return 'NORMAL';
+}
+
+function parseDatabaseTimestampMs(rtdbData: any): number | null {
+    const candidates = [
+        rtdbData?.ts,
+        rtdbData?.timestamp,
+        rtdbData?.lastUpdated,
+        rtdbData?.last_update,
+        rtdbData?.updatedAt,
+    ];
+
+    for (const candidate of candidates) {
+        const numeric = Number(candidate);
+        if (!Number.isFinite(numeric) || numeric <= 0) continue;
+        // Handle second-based timestamps from devices.
+        return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric;
+    }
+
+    return null;
 }
 
 function formatReplayTime(ts?: number) {
@@ -292,6 +313,7 @@ export default function Dashboard() {
 
     const processIncomingData = useCallback(async (deviceId: string, rtdbData: any, source: 'realtime' | 'poll') => {
         const data = parseIncomingData(deviceId, rtdbData);
+        const databaseHeartbeatMs = parseDatabaseTimestampMs(rtdbData) ?? Date.now();
 
         setSensorStatusByUnit(prev => ({
             ...prev,
@@ -333,7 +355,7 @@ export default function Dashboard() {
                 [deviceId]: {
                     ...data,
                     history,
-                    lastHeartbeatMs: Date.now(),
+                    lastHeartbeatMs: databaseHeartbeatMs,
                 },
             };
         });
