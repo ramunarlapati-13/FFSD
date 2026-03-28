@@ -41,12 +41,12 @@ The app features a multi-channel emergency alert system that triggers when `EMER
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                  FIELD DEVICE (ESP8266/ESP32)               │
+│                  FIELD DEVICE (ESP32)                       │
 │                                                             │
 │  DHT11   ──► Temperature/Humidity ──┐                       │
 │  MPU6050 ──► Motion / Fall Detection ├──► Arduino C++ ──►   │
-│  MQ-series─► Gas Level (PPM)       ──┤      Wi-Fi          │
-│  Neo-6M  ──► GPS Location          ──┘                     │
+│  MQ-series─► Gas Level (PPM)       ──┤      Wi-Fi           │
+│  Neo-6M  ──► GPS Location          ──┘                      │
 └─────────────────────────────────────────────────────────────┘
                               │  WebSocket / RTDB
                               ▼
@@ -73,6 +73,7 @@ The app features a multi-channel emergency alert system that triggers when `EMER
 
 | Feature | Description |
 |---|---|
+| **Theme Switching** | Instant toggle between **Light** and **Dark** modes (Sun/Moon button). |
 | **Live Unit Status** | Strictly real-time monitoring of `firefighter_01` node in Firebase. |
 | **Emergency Alerts** | Vibration + Sound + Modal popup for critical conditions. |
 | **GPS Tracking** | Live map with movement trailing (react-native-maps). |
@@ -80,6 +81,16 @@ The app features a multi-channel emergency alert system that triggers when `EMER
 | **Fall Detection** | Specialized monitoring for sudden impact/falls. |
 | **Sensor Health** | Diagnostic grid for GPS, DHT, MPU, and Connectivity. |
 | **Heartbeat Monitor** | Status automatically switches to `OFFLINE` if no packet for 30s. |
+
+---
+
+## 🎨 Theme Customization
+
+The SSFD dashboard is designed for both high-stakes daylight monitoring and low-light tactical operations:
+
+- **🌙 Dark Mode**: Deep blue/slate palette to reduce eye strain and save battery life.
+- **☀️ Light Mode**: High-contrast, clean design for maximum outdoor legibility.
+- **🔄 Instant Toggle**: Accessible Moon/Sun switch in the top-right header.
 
 ---
 
@@ -153,12 +164,15 @@ Scan the QR code with **Expo Go**.
 
 ## 🔒 Security
 
-- **Environment Isolation**: `.env` is ignored by Git. Use `.env.example` for setup.
-- **Connection**: Encrypted TLS connection to Firebase Realtime Database.
-- **Auto-Silence**: Failsafe mechanisms to stop alarms programmatically when safe.
+- **Zero Hardcoded Secrets**: All API keys and Firebase identifiers are strictly managed via environment variables.
+- **Git Hardening**: `.env` and `google-services.json` are globally excluded from version control to prevent leaks.
+- **Encrypted Data Streams**: Uses secure TLS connections to the Firebase Realtime Database.
+- **Failsafe Logic**: In-app safety checks throw descriptive errors if configuration is missing, rather than using fallback keys.
 
 ---
 
-## 📄 License
+## 📄 License & Team
 
-MIT © SSFD Project Team
+© 2026 **Power Pulse Team**. All rights reserved.
+
+Licensed under the MIT License.
