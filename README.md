@@ -30,8 +30,10 @@ This app is strictly synchronized with hardware data streams and features a fail
 
 <p align="center">
   <img src="./docs/screenshots/normal_dashboard.jpg" width="280" alt="Normal Dashboard" />
-  <img src="./docs/screenshots/critical_alert.jpg" width="280" alt="Critical Alert Modal" />
+
   <img src="./docs/screenshots/warning_state.jpg" width="280" alt="Warning Dashboard" />
+
+  <img src="./docs/screenshots/critical_alert.jpg" width="280" alt="Critical Alert Modal" />
 </p>
 
 ---
