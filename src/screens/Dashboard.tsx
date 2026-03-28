@@ -492,7 +492,7 @@ export default function Dashboard() {
                     <View>
                         <Text style={[styles.unitId, { color: theme.text }]}>{selectedUnitId}</Text>
                         <Text style={[styles.unitName, { color: theme.subtext }]}>
-                            RSMK <Text style={styles.callsign}>(Omega)</Text>
+                            Monitoring: {selectedUnitId}
                         </Text>
                         <Text style={[styles.lastUpdated, { color: theme.subtext }]}>
                             Last updated: {selectedUnit ? new Date(selectedUnit.lastHeartbeatMs).toLocaleTimeString() : 'Waiting...'}
