@@ -10,14 +10,19 @@ import { getDatabase } from 'firebase/database';
 // EXPO_PUBLIC_FIREBASE_APP_ID=...
 // EXPO_PUBLIC_FIREBASE_DATABASE_URL=...
 const firebaseConfig = {
-    apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyBbQ9BGFRrrDffRsLvyxBfQfV-a1omFWCo",
-    authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || "ffsd-942f1.firebaseapp.com",
-    projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "ffsd-942f1",
-    storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || "ffsd-942f1.firebasestorage.app",
-    messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "737843333211",
-    appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "1:737843333211:android:aefc064d9ddb9d5390d77e",
-    databaseURL: "https://ffsd-942f1-default-rtdb.asia-southeast1.firebasedatabase.app",
+    apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+    databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
 };
+
+// Security check: Never hardcode keys. Throw an error if environment is not set up correctly.
+if (!firebaseConfig.apiKey) {
+    throw new Error('MISSING_FIREBASE_API_KEY: Please ensure you have EXPO_PUBLIC_FIREBASE_API_KEY in your .env file.');
+}
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
