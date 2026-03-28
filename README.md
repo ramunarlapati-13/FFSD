@@ -1,8 +1,8 @@
 # FFSD — Fire Fighter Safety Device
 
 <p align="center">
-  <strong>Real-time firefighter vitals, GPS tracking & emergency alerting — in your pocket.</strong><br/>
-  A production-ready React Native + Expo mobile companion app for the FFSD monitoring system.
+  <strong>Real-time firefighter vitals, GPS tracking, incident replay & geofencing — in your pocket.</strong><br/>
+  A production-ready React Native + Expo mobile app for multi-firefighter fleet monitoring with tactical incident analysis.
 </p>
 
 <p align="center">
@@ -16,9 +16,14 @@
 
 ## 📖 Project Overview
 
-FFSD (*Fire Fighter Safety Device*) is an end-to-end IoT system designed to monitor a firefighter's safety in real-time. A wearable embedded device streams live sensor telemetry (body-zone temperature, gas levels, motion, GPS location) directly to Firebase, where this **mobile app** displays the status and triggers critical emergency alerts.
+FFSD (*Fire Fighter Safety Device*) is an end-to-end IoT system designed to monitor **multi-firefighter teams** in real-time. Wearable embedded devices stream live sensor telemetry (temperature, gas levels, motion, GPS location) to Firebase, where this **mobile app** displays live status, triggers emergency alerts, tracks historical incident data, manages geofence safety zones, and enables tactical incident replay analysis.
 
-This app is strictly synchronized with hardware data streams and features a failsafe alerting system.
+**Key Capabilities:**
+- 📊 **Multi-Unit Fleet Monitoring** — Real-time status tracking for multiple firefighters simultaneously
+- ⏱️ **Incident History & Replay** — Time-windowed historical data (1h/3h/6h) with playback speed controls (0.5x–4x)
+- 🗺️ **Geofence Management** — Firebase-configured safe/danger zones with automatic breach alerts and colored zone overlays
+- 🚨 **Failsafe Alerting** — Visual, audio, and haptic emergency notifications (no push notifications)
+- 🎯 **Tactical Mapping** — MapLibre 3D map with multi-unit markers, zone visualization, and replay path playback
 
 ---
 
@@ -48,66 +53,113 @@ The app features a multi-channel emergency alert system that triggers when `EMER
 ## 🏗️ System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                  FIELD DEVICE (ESP32)                       │
-│                                                             │
-│  DHT11   ──► Temperature/Humidity ──┐                       │
-│  MPU6050 ──► Motion / Fall Detection ├──► Arduino C++ ──►   │
-│  MQ-series─► Gas Level (PPM)       ──┤      Wi-Fi           │
-│  Neo-6M  ──► GPS Location          ──┘                      │
-└─────────────────────────────────────────────────────────────┘
-                              │  WebSocket / RTDB
-                              ▼
-              ┌──────────────────────────────┐
-              │   Firebase Realtime Database │
-              │  firefighters/firefighter_01 │
-              │    temp, gas, falling,       │
-              │    lat, lng, device_state    │
-              └──────────────────────────────┘
-                             │
-                             ▼
-              ┌──────────────────────────────┐
-              │          FFSD App            │
-              │   (React Native + Expo)      │
-              │   - Realtime Dashboard       │
-              │   - GPS Mapping              │
-              │   - Critical Alerts          │
-              └──────────────────────────────┘
+Field Devices (Multi-Unit Fleet)
+┌──────────────────────────────┐  ┌──────────────────────────────┐  ┌──────────────────┐
+│   Device 1: firefighter_01   │  │   Device 2: firefighter_02   │  │   Device N ...   │
+│                              │  │                              │  │                  │
+│  DHT11 → Temp/Humidity  ┐    │  │  DHT11 → Temp/Humidity  ┐    │  │  DHT11 → ...  ┐  │
+│  MPU6050 → Motion/Fall  ├─► │  │  MPU6050 → Motion/Fall  ├─► │  │  MPU6050 ─► │  │
+│  MQ-series → Gas (PPM)  │   │  │  MQ-series → Gas (PPM)  │   │  │  MQ-series ─┼─►│
+│  Neo-6M → GPS Location  ┘    │  │  Neo-6M → GPS Location  ┘    │  │  Neo-6M ────┘   │
+└──────────────────────────────┘  └──────────────────────────────┘  └──────────────────┘
+           │ WebSocket/RTDB                  │ WebSocket/RTDB                │ WebSocket/RTDB
+           └─────────────────────────────────┴─────────────────────────────┬──────────────┘
+                                                                           │
+                            ┌──────────────────────────────────────────────┘
+                            ▼
+        ┌──────────────────────────────────────────────────────┐
+        │    Firebase Realtime Database                        │
+        ├──────────────────────────────────────────────────────┤
+        │ firefighter_01/                                      │
+        │   ├─ device_state, temp, gas, lat, lng, ...        │
+        │ firefighter_02/                                      │
+        │   ├─ device_state, temp, gas, lat, lng, ...        │
+        │ incident_history/                                    │
+        │   ├─ firefighter_01/ {timestamp1: {...}, ...}       │
+        │   ├─ firefighter_02/ {timestamp2: {...}, ...}       │
+        │ config/geofence_zones                               │
+        │   ├─ zone_1: {name, type, center, radiusMeters}    │
+        │   ├─ zone_2: {name, type, center, radiusMeters}    │
+        └──────────────────────────────────────────────────────┘
+                            │
+                            ▼
+        ┌──────────────────────────────────────────────────────┐
+        │           FFSD Mobile App (React Native + Expo)      │
+        │                                                      │
+        │  Dashboard Screen                                    │
+        │  ├─ Map (Multi-Unit Markers + Zone Overlays)        │
+        │  ├─ Fleet Status Summary                            │
+        │  ├─ Live Vitals Panel (Horizontal Scroll)           │
+        │  ├─ Incident Replay (Timeline Scrubber)             │
+        │  ├─ Geofence Config Selector                        │
+        │  └─ Emergency Alert Modal (Failsafe)                │
+        └──────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📱 Mobile App Features
+## 🎯 Core Features
 
 | Feature | Description |
 |---|---|
-| **3D Architecture** | **Theme-Aware** 3D Building Extrusion (Dark/Light sync). |
-| **Map Layer Switch** | Floating toggle for **Satellite** and **3D Vector** views. |
-| **Tactical Focus** | High-precision **Crosshair** button to instantly center on target. |
-| **Deep-Link Nav** | One-tap **Google/Apple Maps** routing to firefighter coordinates. |
-| **Tactical Compass** | Real-time **Orientation & Pitch** visualization on-map. |
-| **Theme Switching** | Instant toggle between **Light** and **Dark** modes (Sun/Moon button). |
-| **Live Unit Status** | Strictly real-time monitoring of `firefighter_01` node in Firebase. |
-| **Emergency Alerts** | Vibration + Sound + Modal popup for critical conditions. |
-| **GPS Tracking** | Live map with movement trailing (react-native-maps). |
-| **Sensor Suite** | Monitors Temperature, Humidity, and Gas Levels (PPM). |
-| **Fall Detection** | Specialized monitoring for sudden impact/falls. |
-| **Sensor Health** | Diagnostic grid for GPS, DHT, MPU, and Connectivity. |
-| **Heartbeat Monitor** | Status automatically switches to `OFFLINE` if no packet for 30s. |
+| **Multi-Unit Fleet Tracking** | Display live status, vitals, and location for all firefighters on a single tactical map. |
+| **Incident Replay** | Load up to 6 hours of historical sensor data; scrub through timeline with chip-based navigation. |
+| **Playback Controls** | Play/pause, speed control (0.5x / 1x / 2x / 4x), and automatic path drawing during replay. |
+| **Geofence Zones** | Define safe/danger zones via Firebase config; app shows zone overlays and triggers targeted breach alerts. |
+| **Live Vitals Panel** | Horizontal-scroll cards showing temperature, humidity, gas levels, and movement status per unit. |
+| **Emergency Alerts** | Visual modal + audio alarm + vibration for EMERGENCY/SOS/FALL; auto-dismiss on NORMAL state. |
+| **Fleet Status Summary** | Quick overview: total units, offline count, critical alert count. |
+| **3D Map Visualization** | Vector/satellite layer toggle, dark/light mode sync, marker clustering. |
+| **Real-time Synchronization** | Live Firebase listener for multi-unit telemetry streams. |
+| **Failsafe Design** | No push notifications; all alerts are in-app (device-local) to guarantee visibility. |
 
 ---
 
-## 🎨 Theme Customization
+## 🎨 Theme & UI
 
-The FFSD dashboard is designed for both high-stakes daylight monitoring and low-light tactical operations:
+The FFSD dashboard is designed for both daylight and low-light tactical operations:
 
-- **🌙 Dark Mode**: Deep blue/slate palette to reduce eye strain and save battery life.
-- **☀️ Light Mode**: High-contrast, clean design for maximum outdoor legibility.
-- **🔄 Instant Toggle**: Accessible Moon/Sun switch in the top-right header.
+- **🌙 Dark Mode**: Cool blue/slate palette optimized for reduced eye strain and battery preservation.
+- **☀️ Light Mode**: High-contrast design for maximum outdoor legibility and quick readability.
+- **🔄 Instant Toggle**: Easy dark/light mode switch for switching between operational contexts.
+- **Responsive Layout**: Adapts to device orientation; map and vitals panel stack for mobile, flow horizontally on tablets.
 
 ---
 
-## 🛠️ Tech Stack
+## � Project Structure
+
+```
+.
+├── app.json                                  # Expo app config (name, slug, assets, EAS)
+├── App.tsx                                   # Root component & theme provider
+├── index.ts                                  # App entry point
+├── package.json                              # Dependencies (Expo, Providers, Firebase, Maps)
+├── tsconfig.json                             # TypeScript compiler options
+│
+├── src/
+│   ├── screens/
+│   │   └── Dashboard.tsx                     # Main UI: map, fleet tracking, replay, alerts
+│   │
+│   ├── components/
+│   │   ├── MapWrapper.tsx                    # MapLibre integration (markers, zones, replay path)
+│   │   ├── AnalyticsPanel.tsx                # Vitals cards (temp, humidity, gas, movement)
+│   │   └── AlarmPlayer.tsx                   # Emergency audio + vibration handler
+│   │
+│   └── lib/
+│       ├── firebase.ts                       # Firebase RTDB setup & connection
+│       └── types.ts                          # TypeScript interfaces (DeviceState, FirefighterUnit, GeofenceZone)
+│
+├── assets/
+│   ├── logo.png                              # FFSD logo (icon + splash)
+│   └── [icon variants]                       # Adaptive icons for Android/iOS
+│
+└── docs/
+    └── screenshots/                          # App screenshots for docs
+```
+
+---
+
+## �🛠️ Tech Stack
 
 ### 📱 Mobile Application
 | Layer | Technology | Version |
@@ -124,17 +176,45 @@ The FFSD dashboard is designed for both high-stakes daylight monitoring and low-
 ## 🔥 Firebase Realtime Database Structure
 
 ```json
-// Path: firefighter_01/
+// Path: firefighter_01/ (Live Telemetry)
 {
-  "device_state": "NORMAL", // "NORMAL" | "EMERGENCY" | "SOS"
-  "gas_ppm": 25,
-  "fall_detected": false,
+  "device_state": "NORMAL",        // "NORMAL" | "WARNING" | "EMERGENCY" | "SOS" | "OFFLINE"
   "temperature": 32.5,
   "humidity": 45.0,
-  "gps": {
+  "gas_ppm": 25,
+  "falling": false,
+  "movement": "MOVING",            // "MOVING" | "STILL"
+  "location": {
     "lat": 12.9716,
-    "lng": 77.5946,
-    "fix": true
+    "lng": 77.5946
+  }
+}
+
+// Path: incident_history/firefighter_01/{timestamp}/
+{
+  "lat": 12.9716,
+  "lng": 77.5946,
+  "temperature": 32.5,
+  "humidity": 45.0,
+  "gas": 25,
+  "falling": false,
+  "movement": "MOVING",
+  "status": "NORMAL"
+}
+
+// Path: config/geofence_zones/
+{
+  "zone_1": {
+    "name": "Safe Zone A",
+    "type": "SAFE",
+    "center": { "lat": 12.9716, "lng": 77.5946 },
+    "radiusMeters": 500
+  },
+  "zone_2": {
+    "name": "Danger Zone B",
+    "type": "DANGER",
+    "center": { "lat": 12.9800, "lng": 77.5850 },
+    "radiusMeters": 300
   }
 }
 ```
