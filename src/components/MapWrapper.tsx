@@ -17,6 +17,8 @@ interface MapProps {
     selectedUnitId: string;
     zones: GeofenceZone[];
     replayPath: [number, number][];
+    breadcrumbPath: [number, number][];
+    offlineMode: boolean;
     isDarkMode: boolean;
     onSelectUnit: (unitId: string) => void;
 }
@@ -67,12 +69,28 @@ const MapLibreHTML = `
         let markers = {};
         let currentMode = null;
         let currentLayer = 'vector';
+        let currentOffline = false;
+        let isUserInteracting = false;
+        let userInteractTimeout = null;
+        let lastAutoCenterAt = 0;
+        let lastSelectedUnitId = null;
         let selectedUnit = null;
         let latestCoords = [80.658042, 16.508948];
         
         const STYLES = {
             dark: 'https://tiles.openfreemap.org/styles/dark',
             light: 'https://tiles.openfreemap.org/styles/bright',
+            offline: {
+                "version": 8,
+                "sources": {},
+                "layers": [{
+                    "id": "offline-background",
+                    "type": "background",
+                    "paint": {
+                        "background-color": "#0b1220"
+                    }
+                }]
+            },
             satellite: {
                 "version": 8,
                 "sources": {
@@ -185,6 +203,50 @@ const MapLibreHTML = `
                 });
             }
 
+            if (!map.getSource('breadcrumb-line')) {
+                map.addSource('breadcrumb-line', {
+                    'type': 'geojson',
+                    'data': { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': [] } }
+                });
+            }
+
+            if (!map.getLayer('breadcrumb-line-layer')) {
+                map.addLayer({
+                    'id': 'breadcrumb-line-layer',
+                    'type': 'line',
+                    'source': 'breadcrumb-line',
+                    'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                    'paint': {
+                        'line-color': '#f59e0b',
+                        'line-width': 3,
+                        'line-opacity': 0.95,
+                        'line-dasharray': [0.8, 1.8]
+                    }
+                });
+            }
+
+            if (!map.getSource('breadcrumb-points')) {
+                map.addSource('breadcrumb-points', {
+                    'type': 'geojson',
+                    'data': { 'type': 'FeatureCollection', 'features': [] }
+                });
+            }
+
+            if (!map.getLayer('breadcrumb-points-layer')) {
+                map.addLayer({
+                    'id': 'breadcrumb-points-layer',
+                    'type': 'circle',
+                    'source': 'breadcrumb-points',
+                    'paint': {
+                        'circle-radius': 3,
+                        'circle-color': '#fbbf24',
+                        'circle-stroke-color': '#1f2937',
+                        'circle-stroke-width': 1,
+                        'circle-opacity': 0.95,
+                    }
+                });
+            }
+
             if (!map.getLayer('replay-layer')) {
                 map.addLayer({
                     'id': 'replay-layer',
@@ -269,7 +331,15 @@ const MapLibreHTML = `
                     geometry: { type: 'LineString', coordinates: coords }
                 });
             }
-            map.easeTo({ center: latestCoords, duration: 1200 });
+
+            const now = Date.now();
+            const selectedChanged = lastSelectedUnitId !== selectedUnitId;
+            const shouldCenter = !isUserInteracting && (selectedChanged || now - lastAutoCenterAt > 1500);
+            if (shouldCenter) {
+                map.easeTo({ center: latestCoords, duration: selectedChanged ? 900 : 650, essential: true });
+                lastAutoCenterAt = now;
+            }
+            lastSelectedUnitId = selectedUnitId;
         }
 
         function updateReplayPath(replayPath) {
@@ -281,6 +351,34 @@ const MapLibreHTML = `
                         type: 'LineString',
                         coordinates: replayPath.map(p => [p[1], p[0]])
                     }
+                });
+            }
+        }
+
+        function updateBreadcrumbPath(breadcrumbPath) {
+            const lineSource = map.getSource('breadcrumb-line');
+            if (lineSource) {
+                lineSource.setData({
+                    type: 'Feature',
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: breadcrumbPath.map(p => [p[1], p[0]])
+                    }
+                });
+            }
+
+            const pointsSource = map.getSource('breadcrumb-points');
+            if (pointsSource) {
+                pointsSource.setData({
+                    type: 'FeatureCollection',
+                    features: breadcrumbPath.map((p, index) => ({
+                        type: 'Feature',
+                        properties: { step: index },
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [p[1], p[0]],
+                        }
+                    }))
                 });
             }
         }
@@ -303,10 +401,13 @@ const MapLibreHTML = `
             if (!map) {
                 currentMode = data.isDarkMode;
                 currentLayer = data.layerType || 'vector';
+                currentOffline = !!data.offlineMode;
                 const first = data.units?.[0];
                 latestCoords = first ? [first.lng, first.lat] : [80.658042, 16.508948];
                 
-                let initialStyle = currentLayer === 'satellite' ? STYLES.satellite : (data.isDarkMode ? STYLES.dark : STYLES.light);
+                let initialStyle = currentOffline
+                    ? STYLES.offline
+                    : (currentLayer === 'satellite' ? STYLES.satellite : (data.isDarkMode ? STYLES.dark : STYLES.light));
                 
                 map = new maplibregl.Map({
                     container: 'map',
@@ -336,20 +437,57 @@ const MapLibreHTML = `
                     updateMarkers(data.units || []);
                     updateTrail(data.units || [], data.selectedUnitId);
                     updateReplayPath(data.replayPath || []);
+                    updateBreadcrumbPath(data.breadcrumbPath || []);
                     updateZones(data.zones || []);
                 });
+
+                const onInteractStart = () => {
+                    isUserInteracting = true;
+                    if (userInteractTimeout) {
+                        clearTimeout(userInteractTimeout);
+                    }
+                };
+
+                const onInteractEnd = () => {
+                    if (userInteractTimeout) {
+                        clearTimeout(userInteractTimeout);
+                    }
+                    userInteractTimeout = setTimeout(() => {
+                        isUserInteracting = false;
+                    }, 1200);
+                };
+
+                map.on('dragstart', onInteractStart);
+                map.on('zoomstart', onInteractStart);
+                map.on('rotatestart', onInteractStart);
+                map.on('pitchstart', onInteractStart);
+                map.on('dragend', onInteractEnd);
+                map.on('zoomend', onInteractEnd);
+                map.on('rotateend', onInteractEnd);
+                map.on('pitchend', onInteractEnd);
+                return;
+            }
+
+            if (data.offlineMode !== undefined && !!data.offlineMode !== currentOffline) {
+                currentOffline = !!data.offlineMode;
+                const nextStyle = currentOffline
+                    ? STYLES.offline
+                    : (currentLayer === 'satellite' ? STYLES.satellite : (currentMode ? STYLES.dark : STYLES.light));
+                map.setStyle(nextStyle);
                 return;
             }
 
             if (data.layerType !== undefined && data.layerType !== currentLayer) {
                 currentLayer = data.layerType;
-                map.setStyle(currentLayer === 'satellite' ? STYLES.satellite : (currentMode ? STYLES.dark : STYLES.light));
+                if (!currentOffline) {
+                    map.setStyle(currentLayer === 'satellite' ? STYLES.satellite : (currentMode ? STYLES.dark : STYLES.light));
+                }
                 return;
             }
 
             if (data.isDarkMode !== undefined && data.isDarkMode !== currentMode) {
                 currentMode = data.isDarkMode;
-                if (currentLayer === 'vector') {
+                if (currentLayer === 'vector' && !currentOffline) {
                     map.setStyle(data.isDarkMode ? STYLES.dark : STYLES.light);
                 }
             }
@@ -357,6 +495,7 @@ const MapLibreHTML = `
             updateMarkers(data.units || []);
             updateTrail(data.units || [], data.selectedUnitId);
             updateReplayPath(data.replayPath || []);
+            updateBreadcrumbPath(data.breadcrumbPath || []);
             updateZones(data.zones || []);
         };
 
@@ -385,7 +524,7 @@ const MapLibreHTML = `
 </html>
 `;
 
-export default function MapWrapper({ units, selectedUnitId, zones, replayPath, isDarkMode, onSelectUnit }: MapProps) {
+export default function MapWrapper({ units, selectedUnitId, zones, replayPath, breadcrumbPath, offlineMode, isDarkMode, onSelectUnit }: MapProps) {
     const webViewRef = useRef<WebView>(null);
     const [layerType, setLayerType] = useState<'vector' | 'satellite'>('vector');
     const selectedUnit = useMemo(
@@ -395,10 +534,10 @@ export default function MapWrapper({ units, selectedUnitId, zones, replayPath, i
 
     useEffect(() => {
         if (webViewRef.current) {
-            const data = { type: 'update', units, selectedUnitId, zones, replayPath, isDarkMode, layerType };
+            const data = { type: 'update', units, selectedUnitId, zones, replayPath, breadcrumbPath, offlineMode, isDarkMode, layerType };
             webViewRef.current.postMessage(JSON.stringify(data));
         }
-    }, [units, selectedUnitId, zones, replayPath, isDarkMode, layerType]);
+    }, [units, selectedUnitId, zones, replayPath, breadcrumbPath, offlineMode, isDarkMode, layerType]);
 
     const handleFocus = () => {
         if (webViewRef.current) {
@@ -435,7 +574,7 @@ export default function MapWrapper({ units, selectedUnitId, zones, replayPath, i
                     }
                 }}
                 onLoadEnd={() => {
-                    const data = { type: 'update', units, selectedUnitId, zones, replayPath, isDarkMode, layerType };
+                    const data = { type: 'update', units, selectedUnitId, zones, replayPath, breadcrumbPath, offlineMode, isDarkMode, layerType };
                     webViewRef.current?.postMessage(JSON.stringify(data));
                 }}
             />

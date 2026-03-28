@@ -39,6 +39,7 @@ const DEFAULT_ZONES: GeofenceZone[] = [
 const HISTORY_WRITE_COOLDOWN_MS = 15000;
 const ALERT_COOLDOWN_MS = 12000;
 const REPLAY_SPEED_OPTIONS = [0.5, 1, 2, 4] as const;
+const BREADCRUMB_DEPTH_OPTIONS = [20, 50, 100] as const;
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
     const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -141,6 +142,9 @@ export default function Dashboard() {
     const [replayCursor, setReplayCursor] = useState(0);
     const [isReplayPlaying, setIsReplayPlaying] = useState(false);
     const [replaySpeed, setReplaySpeed] = useState<number>(1);
+    const [offlineMapMode, setOfflineMapMode] = useState(false);
+    const [breadcrumbMode, setBreadcrumbMode] = useState(true);
+    const [breadcrumbDepth, setBreadcrumbDepth] = useState<(typeof BREADCRUMB_DEPTH_OPTIONS)[number]>(50);
 
 
     // Analytics state
@@ -435,6 +439,13 @@ export default function Dashboard() {
         ? replayData.slice(0, replayCursor + 1).map(point => [point.lat, point.lng] as [number, number])
         : [];
 
+    const breadcrumbPath = useMemo(() => {
+        if (!breadcrumbMode || !selectedUnit || selectedUnit.history.length === 0) return [] as [number, number][];
+        return selectedUnit.history
+            .slice(-breadcrumbDepth)
+            .map(point => [point.lat, point.lng] as [number, number]);
+    }, [breadcrumbMode, selectedUnit, breadcrumbDepth]);
+
     const scrubberPoints = useMemo(() => {
         if (replayData.length === 0) return [] as Array<{ index: number; ts: number }>;
         const maxPoints = 28;
@@ -585,9 +596,53 @@ export default function Dashboard() {
                         selectedUnitId={selectedUnitId}
                         zones={zones}
                         replayPath={replayPath}
+                        breadcrumbPath={breadcrumbPath}
+                        offlineMode={offlineMapMode}
                         isDarkMode={isDarkMode}
                         onSelectUnit={setSelectedUnitId}
                     />
+                </View>
+
+                <View style={[styles.replayCard, { backgroundColor: theme.card }]}> 
+                    <View style={styles.replayRow}>
+                        <Text style={[styles.replayTitle, { color: theme.text }]}>Low-Connectivity & Recovery</Text>
+                        <TouchableOpacity
+                            style={[styles.replayToggle, { backgroundColor: offlineMapMode ? '#0284c7' : '#475569' }]}
+                            onPress={() => setOfflineMapMode(prev => !prev)}
+                        >
+                            <Text style={styles.replayToggleText}>{offlineMapMode ? 'Offline Map ON' : 'Offline Map OFF'}</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.replayRow}>
+                        <Text style={[styles.replayMeta, { color: theme.subtext }]}>Breadcrumb Recovery Path</Text>
+                        <TouchableOpacity
+                            style={[styles.replayToggle, { backgroundColor: breadcrumbMode ? '#16a34a' : '#475569' }]}
+                            onPress={() => setBreadcrumbMode(prev => !prev)}
+                        >
+                            <Text style={styles.replayToggleText}>{breadcrumbMode ? 'Enabled' : 'Disabled'}</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.replayWindowRow}>
+                        {BREADCRUMB_DEPTH_OPTIONS.map(depth => (
+                            <TouchableOpacity
+                                key={depth}
+                                style={[
+                                    styles.windowBtn,
+                                    { backgroundColor: breadcrumbDepth === depth ? '#16a34a' : (isDarkMode ? '#334155' : '#e2e8f0') },
+                                ]}
+                                onPress={() => setBreadcrumbDepth(depth)}
+                                disabled={!breadcrumbMode}
+                            >
+                                <Text style={[styles.windowBtnText, { color: breadcrumbDepth === depth ? '#fff' : theme.text }]}>
+                                    Last {depth}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <Text style={[styles.replayMeta, { color: theme.subtext }]}>Path points on map: {breadcrumbPath.length}</Text>
                 </View>
 
                 <View style={[styles.replayCard, { backgroundColor: theme.card }]}> 
