@@ -128,6 +128,8 @@ export default function Dashboard() {
     const toggleTheme = () => setIsDarkMode(!isDarkMode);
     const [alertVisible, setAlertVisible] = useState(false);
     const [alertMessage, setAlertMessage] = useState('');
+    const [activeAlertUnitId, setActiveAlertUnitId] = useState<string | null>(null);
+    const [activeAlertAutoDismissOnNormal, setActiveAlertAutoDismissOnNormal] = useState(false);
     const [sensorStatusByUnit, setSensorStatusByUnit] = useState<Record<string, SensorStatus>>({});
 
     const alarmRef = useRef<AlarmPlayerRef>(null);
@@ -175,7 +177,22 @@ export default function Dashboard() {
         }));
     }, []);
 
-    const triggerAlert = useCallback(async (unitId: string, alertType: string, body: string, withAlarm: boolean) => {
+    const dismissAlert = useCallback(() => {
+        Vibration.cancel();
+        alarmRef.current?.stop();
+        setAlertVisible(false);
+        setAlertMessage('');
+        setActiveAlertUnitId(null);
+        setActiveAlertAutoDismissOnNormal(false);
+    }, []);
+
+    const triggerAlert = useCallback(async (
+        unitId: string,
+        alertType: string,
+        body: string,
+        withAlarm: boolean,
+        options?: { autoDismissOnNormal?: boolean }
+    ) => {
         const cooldownKey = `${unitId}:${alertType}`;
         const now = Date.now();
         const lastTs = alertCooldownRef.current[cooldownKey] ?? 0;
@@ -186,6 +203,8 @@ export default function Dashboard() {
             Vibration.vibrate([0, 5000, 1000, 5000], false);
             alarmRef.current?.play();
             setAlertMessage(`${unitId} needs attention!\n${body}`);
+            setActiveAlertUnitId(unitId);
+            setActiveAlertAutoDismissOnNormal(!!options?.autoDismissOnNormal);
             setAlertVisible(true);
         }
     }, []);
@@ -319,6 +338,16 @@ export default function Dashboard() {
             };
         });
 
+        if (
+            alertVisible &&
+            activeAlertAutoDismissOnNormal &&
+            activeAlertUnitId === deviceId &&
+            data.status === 'NORMAL' &&
+            data.falling !== true
+        ) {
+            dismissAlert();
+        }
+
         if (selectedUnitRef.current === deviceId && source === 'realtime') {
             pushAnalytics(data.temperature, data.movement, data.status);
         }
@@ -330,14 +359,24 @@ export default function Dashboard() {
                     deviceId,
                     `🚨 FFSD: ${data.status} ALERT`,
                     `${deviceId} requires immediate assistance!${data.falling ? ' (FALL DETECTED)' : ''}`,
-                    true
+                    true,
+                    { autoDismissOnNormal: true }
                 );
             }
 
             await evaluateGeofence(data);
             await writeIncidentHistory(data);
         }
-    }, [evaluateGeofence, pushAnalytics, triggerAlert, writeIncidentHistory]);
+    }, [
+        activeAlertAutoDismissOnNormal,
+        activeAlertUnitId,
+        alertVisible,
+        dismissAlert,
+        evaluateGeofence,
+        pushAnalytics,
+        triggerAlert,
+        writeIncidentHistory,
+    ]);
 
     useEffect(() => {
         selectedUnitRef.current = selectedUnitId;
@@ -861,7 +900,7 @@ export default function Dashboard() {
                         <Text style={styles.modalMessage}>{alertMessage}</Text>
                         <TouchableOpacity
                             style={styles.modalDismiss}
-                            onPress={() => { Vibration.cancel(); alarmRef.current?.stop(); setAlertVisible(false); }}
+                            onPress={dismissAlert}
                         >
                             <Text style={styles.modalDismissText}>DISMISS</Text>
                         </TouchableOpacity>
