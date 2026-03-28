@@ -14,9 +14,10 @@ interface AnalyticsProps {
     movementHistory: { time: string; moving: number }[];
     statusCounts: { name: string; value: number; color: string }[];
     sensorStatus: SensorStatus;
+    isDarkMode?: boolean;
 }
 
-export default function AnalyticsPanel({ tempHistory, movementHistory, statusCounts, sensorStatus }: AnalyticsProps) {
+export default function AnalyticsPanel({ tempHistory, movementHistory, statusCounts, sensorStatus, isDarkMode }: AnalyticsProps) {
     const recentParams = [
         { label: 'GPS', status: sensorStatus.gps },
         { label: 'DHT11', status: sensorStatus.dht11 },
@@ -24,14 +25,22 @@ export default function AnalyticsPanel({ tempHistory, movementHistory, statusCou
         { label: 'Wi-Fi', status: sensorStatus.wifi },
     ];
 
+    const theme = {
+        bg: isDarkMode ? '#0f172a' : '#f8fafc',
+        card: isDarkMode ? '#1e293b' : '#ffffff',
+        text: isDarkMode ? '#f1f5f9' : '#1e293b',
+        subtext: isDarkMode ? '#94a3b8' : '#475569',
+        border: isDarkMode ? '#334155' : '#f1f5f9',
+    };
+
     return (
-        <ScrollView style={styles.container}>
-            <View style={styles.card}>
-                <Text style={styles.cardTitle}>Sensor Health</Text>
+        <ScrollView style={[styles.container, { backgroundColor: theme.bg }]}>
+            <View style={[styles.card, { backgroundColor: theme.card }]}>
+                <Text style={[styles.cardTitle, { color: theme.text }]}>Sensor Health</Text>
                 <View style={styles.sensorGrid}>
                     {recentParams.map((param, index) => (
-                        <View key={index} style={styles.sensorRow}>
-                            <Text style={styles.sensorName}>{param.label}</Text>
+                        <View key={index} style={[styles.sensorRow, { borderBottomColor: theme.border }]}>
+                            <Text style={[styles.sensorName, { color: theme.subtext }]}>{param.label}</Text>
                             <Text style={[styles.sensorStatus, param.status === 'ok' ? styles.statusOk : styles.statusErr]}>
                                 {param.status.toUpperCase()}
                             </Text>
@@ -40,11 +49,11 @@ export default function AnalyticsPanel({ tempHistory, movementHistory, statusCou
                 </View>
             </View>
 
-            <View style={styles.card}>
-                <Text style={styles.cardTitle}>Status Breakdown</Text>
+            <View style={[styles.card, { backgroundColor: theme.card }]}>
+                <Text style={[styles.cardTitle, { color: theme.text }]}>Status Breakdown</Text>
                 {statusCounts.map((sc, i) => (
                     <View key={i} style={styles.statRow}>
-                        <Text style={styles.statLabel}>{sc.name}</Text>
+                        <Text style={[styles.statLabel, { color: theme.subtext }]}>{sc.name}</Text>
                         <Text style={[styles.statValue, { color: sc.color }]}>{sc.value}</Text>
                     </View>
                 ))}

@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Vibration, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Vibration, Modal, Platform, StatusBar } from 'react-native';
 import { ref, onValue } from 'firebase/database';
 import { rtdb } from '../lib/firebase';
-import { Thermometer, Droplets, Activity, ShieldCheck, AlertTriangle, Siren, Zap, Wifi, Wind, AlertCircle } from 'lucide-react-native';
+import { Thermometer, Droplets, Activity, ShieldCheck, AlertTriangle, Siren, Zap, Wifi, Wind, AlertCircle, Moon, Sun } from 'lucide-react-native';
 import MapWrapper from '../components/MapWrapper';
 import AnalyticsPanel, { SensorStatus } from '../components/AnalyticsPanel';
 import { DeviceData, DeviceState } from '../lib/types';
@@ -11,7 +11,19 @@ import AlarmPlayer, { AlarmPlayerRef } from '../components/AlarmPlayer';
 const DEVICE_ID = 'firefighter_01';
 
 export default function Dashboard() {
+    const [isDarkMode, setIsDarkMode] = useState(false);
     const [deviceData, setDeviceData] = useState<DeviceData | null>(null);
+    
+    // Theme colors
+    const theme = {
+        bg: isDarkMode ? '#0f172a' : '#f1f5f9',
+        card: isDarkMode ? '#1e293b' : '#fff',
+        text: isDarkMode ? '#f8fafc' : '#1e293b',
+        subtext: isDarkMode ? '#94a3b8' : '#64748b',
+        border: isDarkMode ? '#334155' : '#e2e8f0',
+    };
+
+    const toggleTheme = () => setIsDarkMode(!isDarkMode);
     const [lastHeartbeat, setLastHeartbeat] = useState<Date | null>(null);
     const [trail, setTrail] = useState<[number, number][]>([]);
     const [secondsOffline, setSecondsOffline] = useState<number>(0);
@@ -188,25 +200,31 @@ export default function Dashboard() {
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.bg }]}>
+            <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#020617' : '#f1f5f9'} />
             {/* Hidden alarm sound player */}
             <AlarmPlayer ref={alarmRef} />
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
                 <View style={styles.headerLeft}>
                     <Text style={styles.appTitle}>SSFD</Text>
                     <View>
-                        <Text style={styles.unitId}>{DEVICE_ID}</Text>
-                        <Text style={styles.unitName}>RSMK <Text style={styles.callsign}>(Omega)</Text></Text>
-                        <Text style={styles.lastUpdated}>
+                        <Text style={[styles.unitId, { color: theme.text }]}>{DEVICE_ID}</Text>
+                        <Text style={[styles.unitName, { color: theme.subtext }]}>
+                            RSMK <Text style={styles.callsign}>(Omega)</Text>
+                        </Text>
+                        <Text style={[styles.lastUpdated, { color: theme.subtext }]}>
                             Last updated: {lastHeartbeat ? lastHeartbeat.toLocaleTimeString() : 'Waiting...'}
                         </Text>
                     </View>
                 </View>
                 <View style={styles.headerRight}>
-                    <View style={[styles.liveIndicator, { backgroundColor: isOnline ? '#dcfce7' : '#f1f5f9' }]}>
+                    <TouchableOpacity onPress={toggleTheme} style={styles.themeToggle}>
+                        {isDarkMode ? <Sun size={20} color="#fbbf24" strokeWidth={2.5} /> : <Moon size={20} color="#64748b" strokeWidth={2} />}
+                    </TouchableOpacity>
+                    <View style={[styles.liveIndicator, { backgroundColor: isOnline ? (isDarkMode ? '#064e3b' : '#dcfce7') : (isDarkMode ? '#334155' : '#f1f5f9') }]}>
                         <View style={[styles.liveDot, { backgroundColor: isOnline ? '#10b981' : '#94a3b8' }]} />
-                        <Text style={[styles.liveText, { color: isOnline ? '#166534' : '#64748b' }]}>
+                        <Text style={[styles.liveText, { color: isOnline ? (isDarkMode ? '#34d399' : '#166534') : theme.subtext }]}>
                             {isOnline ? 'LIVE' : 'OFFLINE'}
                         </Text>
                     </View>
@@ -215,13 +233,13 @@ export default function Dashboard() {
 
             <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
                 {/* Status Card */}
-                <View style={[styles.statusCard, { borderColor: statusBorderColor() }]}>
+                <View style={[styles.statusCard, { borderColor: statusBorderColor(), backgroundColor: theme.card }]}>
                     {getStatusIcon(displayStatus)}
                     <Text style={[styles.statusText, { color: statusBorderColor() }]}>{displayStatus}</Text>
                 </View>
 
                 {/* Map */}
-                <View style={styles.mapContainer}>
+                <View style={[styles.mapContainer, { borderColor: theme.border }]}>
                     <MapWrapper
                         lat={displayData?.location?.lat ?? 16.508948062198765}
                         lng={displayData?.location?.lng ?? 80.65804243873862}
@@ -232,26 +250,26 @@ export default function Dashboard() {
 
                 {/* Sensor Cards */}
                 <View style={styles.sensorsRow}>
-                    <View style={styles.sensorBox}>
+                    <View style={[styles.sensorBox, { backgroundColor: theme.card }]}>
                         <View style={styles.sensorIconBg}>
                             <Thermometer size={20} color="#6366f1" />
                         </View>
                         <View style={styles.sensorInfo}>
-                            <Text style={styles.sensorLabel}>TEMPERATURE</Text>
-                            <Text style={styles.sensorValue}>
+                            <Text style={[styles.sensorLabel, { color: theme.subtext }]}>TEMPERATURE</Text>
+                            <Text style={[styles.sensorValue, { color: theme.text }]}>
                                 {(displayData?.temperature != null && displayData.temperature !== -999)
                                     ? `${displayData.temperature.toFixed(1)}°C`
                                     : 'N/A'}
                             </Text>
                         </View>
                     </View>
-                    <View style={styles.sensorBox}>
-                        <View style={[styles.sensorIconBg, { backgroundColor: displayData?.status === 'NORMAL' ? '#e0f2fe' : '#fee2e2' }]}>
-                            <Activity size={20} color={displayData?.status === 'NORMAL' ? '#0ea5e9' : '#ef4444'} />
+                    <View style={[styles.sensorBox, { backgroundColor: theme.card }]}>
+                        <View style={[styles.sensorIconBg, { backgroundColor: displayData?.status === 'NORMAL' ? (isDarkMode ? '#0c4a6e' : '#e0f2fe') : (isDarkMode ? '#7f1d1d' : '#fee2e2') }]}>
+                            <Activity size={20} color={displayData?.status === 'NORMAL' ? (isDarkMode ? '#38bdf8' : '#0ea5e9') : '#ef4444'} />
                         </View>
                         <View style={styles.sensorInfo}>
-                            <Text style={styles.sensorLabel}>MOTION & STATE</Text>
-                            <Text style={styles.sensorValue}>
+                            <Text style={[styles.sensorLabel, { color: theme.subtext }]}>MOTION & STATE</Text>
+                            <Text style={[styles.sensorValue, { color: theme.text }]}>
                                 {displayData?.movement ?? 'STABLE'} | {displayData?.status ?? 'NORMAL'}
                             </Text>
                         </View>
@@ -260,26 +278,26 @@ export default function Dashboard() {
 
                 {/* Sensor Cards Bottom Row */}
                 <View style={styles.sensorsRow}>
-                    <View style={styles.sensorBox}>
-                        <View style={[styles.sensorIconBg, { backgroundColor: '#dcfce7' }]}>
+                    <View style={[styles.sensorBox, { backgroundColor: theme.card }]}>
+                        <View style={[styles.sensorIconBg, { backgroundColor: isDarkMode ? '#064e3b' : '#dcfce7' }]}>
                             <Droplets size={20} color="#10b981" />
                         </View>
                         <View style={styles.sensorInfo}>
-                            <Text style={styles.sensorLabel}>HUMIDITY</Text>
-                            <Text style={styles.sensorValue}>
+                            <Text style={[styles.sensorLabel, { color: theme.subtext }]}>HUMIDITY</Text>
+                            <Text style={[styles.sensorValue, { color: theme.text }]}>
                                 {(displayData?.humidity != null)
                                     ? `${displayData.humidity.toFixed(1)}%`
                                     : 'N/A'}
                             </Text>
                         </View>
                     </View>
-                    <View style={styles.sensorBox}>
-                        <View style={[styles.sensorIconBg, { backgroundColor: '#fee2e2' }]}>
+                    <View style={[styles.sensorBox, { backgroundColor: theme.card }]}>
+                        <View style={[styles.sensorIconBg, { backgroundColor: isDarkMode ? '#7f1d1d' : '#fee2e2' }]}>
                             <Wind size={20} color="#ef4444" />
                         </View>
                         <View style={styles.sensorInfo}>
-                            <Text style={styles.sensorLabel}>GAS LEVEL</Text>
-                            <Text style={styles.sensorValue}>
+                            <Text style={[styles.sensorLabel, { color: theme.subtext }]}>GAS LEVEL</Text>
+                            <Text style={[styles.sensorValue, { color: theme.text }]}>
                                 {displayData?.gas != null ? `${displayData.gas} PPM` : 'N/A'}
                             </Text>
                         </View>
@@ -300,6 +318,7 @@ export default function Dashboard() {
                     movementHistory={movementHistory}
                     statusCounts={statusCounts}
                     sensorStatus={sensorStatus}
+                    isDarkMode={isDarkMode}
                 />
             </ScrollView>
 
@@ -324,20 +343,31 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#f1f5f9' },
+    safeArea: {
+        flex: 1,
+        backgroundColor: '#f1f5f9',
+        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    },
     // Header
     header: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 12,
-        borderBottomWidth: 1, borderBottomColor: '#e2e8f0',
+        paddingHorizontal: 16, paddingVertical: 12,
+        borderBottomWidth: 1,
     },
     headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     appTitle: { fontSize: 22, fontWeight: '900', color: '#4f46e5', letterSpacing: 1 },
-    unitId: { fontSize: 10, fontWeight: '800', color: '#4f46e5', letterSpacing: 2 },
-    unitName: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
+    unitId: { fontSize: 10, fontWeight: '800', letterSpacing: 2 },
+    unitName: { fontSize: 14, fontWeight: '700' },
     callsign: { fontWeight: '400', color: '#64748b' },
-    lastUpdated: { fontSize: 10, color: '#64748b', marginTop: 2, fontStyle: 'italic' },
-    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    lastUpdated: { fontSize: 10, marginTop: 2, fontStyle: 'italic' },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    themeToggle: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     liveIndicator: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
     liveDot: { width: 6, height: 6, borderRadius: 3 },
     liveText: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
