@@ -40,6 +40,7 @@ const HISTORY_WRITE_COOLDOWN_MS = 15000;
 const ALERT_COOLDOWN_MS = 12000;
 const REPLAY_SPEED_OPTIONS = [0.5, 1, 2, 4] as const;
 const BREADCRUMB_DEPTH_OPTIONS = [20, 50, 100] as const;
+const FIREFIGHTER_SEARCH_INTERVAL_MS = 1000;
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
     const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -145,6 +146,7 @@ export default function Dashboard() {
     const [offlineMapMode, setOfflineMapMode] = useState(false);
     const [breadcrumbMode, setBreadcrumbMode] = useState(true);
     const [breadcrumbDepth, setBreadcrumbDepth] = useState<(typeof BREADCRUMB_DEPTH_OPTIONS)[number]>(50);
+    const [perSecondSearchEnabled] = useState(true);
 
 
     // Analytics state
@@ -269,6 +271,74 @@ export default function Dashboard() {
         setReplayCursor(points.length > 0 ? points.length - 1 : 0);
     }, []);
 
+    const processIncomingData = useCallback(async (deviceId: string, rtdbData: any, source: 'realtime' | 'poll') => {
+        const data = parseIncomingData(deviceId, rtdbData);
+
+        setSensorStatusByUnit(prev => ({
+            ...prev,
+            [deviceId]: {
+                gps: rtdbData.gps_status === 'OK' || rtdbData.gps_status === 'MOCK' ? 'ok' : 'unknown',
+                dht11: (rtdbData.temperature != null || rtdbData.humidity != null) ? 'ok' : 'error',
+                mpu6050: rtdbData.movement != null ? 'ok' : 'unknown',
+                wifi: rtdbData.dht_status === 'OK' ? 'ok' : 'error',
+            },
+        }));
+
+        setFleet(prev => {
+            const existing = prev[deviceId];
+            const lastTrail = existing?.history.map(h => [h.lat, h.lng] as [number, number]) ?? [];
+            const point: HistoricalPoint = {
+                ts: Date.now(),
+                lat: data.location.lat,
+                lng: data.location.lng,
+                temperature: data.temperature,
+                humidity: data.humidity,
+                gas: data.gas ?? 0,
+                falling: data.falling ?? false,
+                movement: data.movement,
+                status: data.status,
+            };
+
+            const shouldAppendPoint = (() => {
+                const last = lastTrail[lastTrail.length - 1];
+                if (!last) return true;
+                return Math.abs(last[0] - data.location.lat) > 0.0001 || Math.abs(last[1] - data.location.lng) > 0.0001;
+            })();
+
+            const history = shouldAppendPoint
+                ? [...(existing?.history ?? []).slice(-199), point]
+                : (existing?.history ?? []);
+
+            return {
+                ...prev,
+                [deviceId]: {
+                    ...data,
+                    history,
+                    lastHeartbeatMs: Date.now(),
+                },
+            };
+        });
+
+        if (selectedUnitRef.current === deviceId && source === 'realtime') {
+            pushAnalytics(data.temperature, data.movement, data.status);
+        }
+
+        if (source === 'realtime') {
+            const isCritical = data.status === 'EMERGENCY' || data.status === 'SOS' || data.falling === true;
+            if (isCritical) {
+                await triggerAlert(
+                    deviceId,
+                    `🚨 FFSD: ${data.status} ALERT`,
+                    `${deviceId} requires immediate assistance!${data.falling ? ' (FALL DETECTED)' : ''}`,
+                    true
+                );
+            }
+
+            await evaluateGeofence(data);
+            await writeIncidentHistory(data);
+        }
+    }, [evaluateGeofence, pushAnalytics, triggerAlert, writeIncidentHistory]);
+
     useEffect(() => {
         selectedUnitRef.current = selectedUnitId;
     }, [selectedUnitId]);
@@ -301,77 +371,32 @@ export default function Dashboard() {
             const deviceRef = ref(rtdb, deviceId);
             return onValue(deviceRef, async snap => {
                 if (!snap.exists()) return;
-                const rtdbData = snap.val();
-                const data = parseIncomingData(deviceId, rtdbData);
-
-                setSensorStatusByUnit(prev => ({
-                    ...prev,
-                    [deviceId]: {
-                        gps: rtdbData.gps_status === 'OK' || rtdbData.gps_status === 'MOCK' ? 'ok' : 'unknown',
-                        dht11: (rtdbData.temperature != null || rtdbData.humidity != null) ? 'ok' : 'error',
-                        mpu6050: rtdbData.movement != null ? 'ok' : 'unknown',
-                        wifi: rtdbData.dht_status === 'OK' ? 'ok' : 'error',
-                    },
-                }));
-
-                setFleet(prev => {
-                    const existing = prev[deviceId];
-                    const lastTrail = existing?.history.map(h => [h.lat, h.lng] as [number, number]) ?? [];
-                    const point: HistoricalPoint = {
-                        ts: Date.now(),
-                        lat: data.location.lat,
-                        lng: data.location.lng,
-                        temperature: data.temperature,
-                        humidity: data.humidity,
-                        gas: data.gas ?? 0,
-                        falling: data.falling ?? false,
-                        movement: data.movement,
-                        status: data.status,
-                    };
-
-                    const shouldAppendPoint = (() => {
-                        const last = lastTrail[lastTrail.length - 1];
-                        if (!last) return true;
-                        return Math.abs(last[0] - data.location.lat) > 0.0001 || Math.abs(last[1] - data.location.lng) > 0.0001;
-                    })();
-
-                    const history = shouldAppendPoint
-                        ? [...(existing?.history ?? []).slice(-199), point]
-                        : (existing?.history ?? []);
-
-                    return {
-                        ...prev,
-                        [deviceId]: {
-                            ...data,
-                            history,
-                            lastHeartbeatMs: Date.now(),
-                        },
-                    };
-                });
-
-                if (selectedUnitRef.current === deviceId) {
-                    pushAnalytics(data.temperature, data.movement, data.status);
-                }
-
-                const isCritical = data.status === 'EMERGENCY' || data.status === 'SOS' || data.falling === true;
-                if (isCritical) {
-                    await triggerAlert(
-                        deviceId,
-                        `🚨 FFSD: ${data.status} ALERT`,
-                        `${deviceId} requires immediate assistance!${data.falling ? ' (FALL DETECTED)' : ''}`,
-                        true
-                    );
-                }
-
-                await evaluateGeofence(data);
-                await writeIncidentHistory(data);
+                await processIncomingData(deviceId, snap.val(), 'realtime');
             });
         });
 
         return () => {
             unsubs.forEach(unsub => unsub());
         };
-    }, [evaluateGeofence, pushAnalytics, triggerAlert, writeIncidentHistory]);
+    }, [processIncomingData]);
+
+    useEffect(() => {
+        if (!perSecondSearchEnabled) return;
+
+        const interval = setInterval(() => {
+            DEVICE_IDS.forEach(async (deviceId) => {
+                try {
+                    const snapshot = await get(ref(rtdb, deviceId));
+                    if (!snapshot.exists()) return;
+                    await processIncomingData(deviceId, snapshot.val(), 'poll');
+                } catch {
+                    // Ignore transient poll failures; realtime listeners continue running.
+                }
+            });
+        }, FIREFIGHTER_SEARCH_INTERVAL_MS);
+
+        return () => clearInterval(interval);
+    }, [perSecondSearchEnabled, processIncomingData]);
 
     useEffect(() => {
         const interval = setInterval(() => setClockTick(Date.now()), 1000);
@@ -528,6 +553,7 @@ export default function Dashboard() {
                     <Text style={[styles.fleetSummaryText, { color: theme.text }]}>Fleet: {fleetStatusCounts.total}</Text>
                     <Text style={[styles.fleetSummaryText, { color: theme.subtext }]}>Critical: {fleetStatusCounts.critical}</Text>
                     <Text style={[styles.fleetSummaryText, { color: theme.subtext }]}>Offline: {fleetStatusCounts.offline}</Text>
+                    <Text style={[styles.fleetSummaryText, { color: theme.subtext }]}>Search: 1s</Text>
                 </View>
 
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Fleet Overview</Text>
