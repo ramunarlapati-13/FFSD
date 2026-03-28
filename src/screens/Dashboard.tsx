@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Vibration, Modal, Platform, StatusBar } from 'react-native';
-import { ref, onValue } from 'firebase/database';
+import * as Notifications from 'expo-notifications';
+import { ref, onValue, update } from 'firebase/database';
 import { rtdb } from '../lib/firebase';
+import { registerForPushNotificationsAsync, savePushTokenToFirebase } from '../lib/NotificationService';
 import { Thermometer, Droplets, Activity, ShieldCheck, AlertTriangle, Siren, Zap, Wifi, Wind, AlertCircle, Moon, Sun } from 'lucide-react-native';
 import MapWrapper from '../components/MapWrapper';
 import AnalyticsPanel, { SensorStatus } from '../components/AnalyticsPanel';
@@ -68,6 +70,14 @@ export default function Dashboard() {
     }, []);
 
     useEffect(() => {
+        // Register for Push Notifications on Mount
+        registerForPushNotificationsAsync().then(token => {
+            if (token) {
+                savePushTokenToFirebase(token, DEVICE_ID);
+                console.log('Push Service: Ready');
+            }
+        });
+
         setTrail([]);
         setTempHistory([]);
         setMovementHistory([]);
@@ -133,10 +143,21 @@ export default function Dashboard() {
             if (isCritical && Date.now() - lastAlertTime.current > 10000) {
                 lastAlertTime.current = Date.now();
                 Vibration.vibrate([0, 5000, 1000, 5000, 1000, 5000, 1000, 5000, 1000, 5000], false);
-                alarmRef.current?.play();
-                setAlertMessage(`${DEVICE_ID} needs attention!\nStatus: ${mappedStatus}${data.falling ? '\n⚠️ FALL DETECTED' : ''}`);
-                setAlertVisible(true);
-            } else if (!isCritical) {
+                    alarmRef.current?.play();
+                    setAlertMessage(`${DEVICE_ID} needs attention!\nStatus: ${mappedStatus}${data.falling ? '\n⚠️ FALL DETECTED' : ''}`);
+                    setAlertVisible(true);
+
+                    // Local Notification Fallback (Works in Foreground/Background)
+                    Notifications.scheduleNotificationAsync({
+                        content: {
+                            title: `🚨 SSFD: ${mappedStatus} ALERT`,
+                            body: `${DEVICE_ID} requires immediate assistance!${data.falling ? ' (FALL DETECTED)' : ''}`,
+                            sound: true,
+                            priority: 'max',
+                        },
+                        trigger: null, // Send immediately
+                    });
+                } else if (!isCritical) {
                 // Auto-dismiss when state returns to NORMAL
                 Vibration.cancel();
                 alarmRef.current?.stop();
@@ -394,7 +415,7 @@ const styles = StyleSheet.create({
     },
     statusText: { fontSize: 20, fontWeight: '900', marginTop: 8, letterSpacing: 2 },
     mapContainer: {
-        height: 350, borderRadius: 24, overflow: 'hidden', backgroundColor: '#e2e8f0',
+        height: 385, borderRadius: 24, overflow: 'hidden', backgroundColor: '#e2e8f0',
         marginBottom: 16,
         shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 4,
     },
