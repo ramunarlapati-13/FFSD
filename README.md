@@ -232,6 +232,23 @@ npx expo start
 
 ---
 
+## Developed By
+
+1. R.S. Manikanta
+  - GitHub: https://github.com/Rsmk27
+  - LinkedIn: https://www.linkedin.com/in/srinivasamanikanta/
+2. G. Sairam
+  - GitHub: https://github.com/sairamgalam017
+  - LinkedIn: https://www.linkedin.com/in/sairam-galam/
+3. J. Santhosh
+  - GitHub: https://github.com/chintu-boltey
+  - LinkedIn: https://www.linkedin.com/in/santhosh-juvvanapudi-07a871373/
+4. N. Ramu
+  - GitHub: https://github.com/ramunarlapati-13
+  - LinkedIn: https://www.linkedin.com/in/ramunarlapati/
+
+---
+
 ## License
 
 Copyright (c) 2026 Power Pulse Team.
