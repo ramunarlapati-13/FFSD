@@ -31,18 +31,27 @@ Core operational goals:
 
 | Capability | What it does |
 |---|---|
-| Multi-unit fleet monitoring | Tracks multiple firefighter units simultaneously on a shared map and status dashboard. |
-| Per-second firefighter search | Polls each firefighter node every second in addition to realtime listeners for resilient state refresh. |
-| Database-driven status | Uses database values (including OFFLINE and timestamp fields) as source of truth for state/freshness. |
-| Offline status detection | Units automatically show OFFLINE when telemetry freshness window is exceeded. |
-| Emergency alerting | Modal + alarm + vibration for EMERGENCY/SOS/FALL conditions. |
-| Auto-dismiss alarms | Active critical popup/alarm auto-clears when the triggering unit returns to NORMAL and fall condition clears. |
-| Geofence safety zones | Supports SAFE and DANGER zones from Firebase config with breach/entry detection. |
-| Incident history logging | Writes periodic incident points to Firebase for forensic replay. |
-| Incident replay controls | 1h/3h/6h windows with play/pause, step, scrub, and speed control (0.5x/1x/2x/4x). |
-| Breadcrumb recovery path | Draws recent movement path for selected unit to support backtracking/recovery. |
-| Offline map mode | Switches to offline-safe map style while preserving markers, paths, and zone overlays. |
-| Smooth map interaction | Reduced camera jitter and better user pan/zoom control under frequent updates. |
+| Multi-unit fleet monitoring | Tracks multiple firefighter units in one dashboard with fleet cards, status summary, and quick unit switching. |
+| Realtime + per-second fallback polling | Uses Firebase realtime listeners as primary stream, with 1-second polling fallback for resilient refresh in unstable connectivity. |
+| Database-driven state mapping | Converts incoming `device_state` values into NORMAL/WARNING/EMERGENCY/SOS/OFFLINE operational states. |
+| Freshness-based offline detection | Marks units OFFLINE when heartbeat/timestamp freshness window is exceeded. |
+| Critical emergency handling | Triggers CRITICAL ALERT modal with looping alarm and vibration for EMERGENCY, SOS, and FALL conditions. |
+| Auto-dismiss on normalization | Auto-clears active critical alerts when the triggering unit returns to NORMAL and fall is cleared. |
+| Alert cooldown protection | Applies per-unit/per-alert cooldowns to avoid notification/alarm spam during bursty updates. |
+| Geofence monitoring (SAFE + DANGER) | Loads zones from Firebase (`config/geofence_zones`) and detects safe-zone breach and danger-zone entry events. |
+| Geofence fallback defaults | Automatically falls back to built-in default zones when Firebase config is missing/invalid. |
+| Incident history persistence | Writes periodic incident points to Firebase (`incident_history/{firefighterId}/{timestamp}`) for debrief and replay. |
+| Incident replay mode | Supports replay window selection (1h/3h/6h), playback speeds (0.5x/1x/2x/4x), play/pause, and frame stepping. |
+| Replay scrubber timeline | Provides clickable replay timeline points for fast manual scrubbing to incident moments. |
+| Breadcrumb recovery mode | Draws recent movement breadcrumbs (20/50/100 points) to support route backtracking/recovery. |
+| Live movement trails | Maintains per-unit path trails and displays selected-unit trajectory on map. |
+| Offline map style | Switches map rendering into offline-safe style while preserving overlays and operational markers. |
+| Multi-layer map controls | Supports vector and satellite map styles with in-app layer toggle. |
+| Focus and external navigation actions | Offers map focus/centering action and opens platform navigation apps toward selected unit coordinates. |
+| Geofence/map overlays | Renders SAFE/DANGER polygons, live trail, replay path, and breadcrumb overlays simultaneously. |
+| Sensor telemetry panels | Displays temperature, humidity, gas, movement/state, fall status, and unit-level sensor health states (GPS, DHT11, MPU6050, Wi-Fi). |
+| Operational analytics panel | Shows status breakdown and sensor health summary for command awareness. |
+| Dark/Light theme toggle | Runtime theme switching for better readability across lighting conditions. |
 
 ---
 
